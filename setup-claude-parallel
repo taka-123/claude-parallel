@@ -1,0 +1,257 @@
+#!/bin/bash
+
+# Claude Code 並列開発環境セットアップスクリプト
+# 使用方法: ./setup-claude-parallel [プロジェクト名] [並列数]
+
+set -e
+
+# デフォルト値
+DEFAULT_PARALLEL_COUNT=6
+DEFAULT_PROJECT_NAME=$(basename "$(pwd)")
+
+# 引数の処理
+PROJECT_NAME=${1:-$DEFAULT_PROJECT_NAME}
+PARALLEL_COUNT=${2:-$DEFAULT_PARALLEL_COUNT}
+SESSION_NAME="claude-${PROJECT_NAME}"
+
+# 色付きメッセージ
+print_info() {
+  echo -e "\033[34m[INFO]\033[0m $1"
+}
+
+print_success() {
+  echo -e "\033[32m[SUCCESS]\033[0m $1"
+}
+
+print_error() {
+  echo -e "\033[31m[ERROR]\033[0m $1"
+}
+
+print_warning() {
+  echo -e "\033[33m[WARNING]\033[0m $1"
+}
+
+# 必要なツールの確認
+check_requirements() {
+  print_info "必要なツールを確認中..."
+
+  if ! command -v tmux &>/dev/null; then
+    print_error "tmux がインストールされていません。以下のコマンドでインストールしてください："
+    echo "brew install tmux"
+    exit 1
+  fi
+
+  if ! command -v git &>/dev/null; then
+    print_error "git がインストールされていません。"
+    exit 1
+  fi
+
+  if ! command -v claude &>/dev/null; then
+    print_error "Claude Code がインストールされていません。"
+    echo "https://docs.anthropic.com/en/docs/claude-code から インストールしてください。"
+    exit 1
+  fi
+
+  print_success "すべての必要なツールが確認できました"
+}
+
+# tmux 設定の確認
+check_tmux_config() {
+  print_info "tmux 設定を確認中..."
+
+  if [ ! -f ~/.tmux.conf ]; then
+    print_warning "~/.tmux.conf が見つかりません"
+    read -p ".tmux.conf.example をコピーしますか？ (y/n): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+      if [ -f .tmux.conf.example ]; then
+        cp .tmux.conf.example ~/.tmux.conf
+        print_success "~/.tmux.conf を作成しました"
+      else
+        print_error ".tmux.conf.example が見つかりません"
+        exit 1
+      fi
+    else
+      print_warning "既存の tmux 設定で続行します"
+    fi
+  fi
+}
+
+# Git worktree セットアップ
+setup_worktrees() {
+  print_info "Git worktree を設定中... (${PARALLEL_COUNT}個)"
+
+  # Git リポジトリの確認
+  if [ ! -d .git ]; then
+    print_error "Git リポジトリではありません。git init を実行してください。"
+    exit 1
+  fi
+
+  # 既存の worktree をクリーンアップ
+  print_info "既存の worktree をクリーンアップ中..."
+  git worktree list | grep "${PROJECT_NAME}-task" | awk '{print $1}' | while read -r path; do
+    if [ -d "$path" ]; then
+      print_info "削除中: $path"
+      git worktree remove "$path" 2>/dev/null || true
+    fi
+  done
+
+  # 新しい worktree を作成
+  for i in $(seq 1 "$PARALLEL_COUNT"); do
+    WORKTREE_PATH="../${PROJECT_NAME}-task${i}"
+    BRANCH_NAME="feature/task${i}"
+
+    print_info "作成中: $WORKTREE_PATH ($BRANCH_NAME)"
+
+    # ブランチが既に存在する場合は削除
+    git branch -D "$BRANCH_NAME" 2>/dev/null || true
+
+    # worktree を作成
+    git worktree add "$WORKTREE_PATH" -b "$BRANCH_NAME"
+
+    # 依存関係のインストール（Node.js プロジェクトの場合）
+    if [ -f package.json ]; then
+      print_info "依存関係をインストール中: $WORKTREE_PATH"
+      (cd "$WORKTREE_PATH" && npm install --silent) &
+    fi
+  done
+
+  wait # 並列インストールの完了を待機
+  print_success "すべての worktree が作成されました"
+}
+
+# tmux セッション作成
+create_tmux_session() {
+  print_info "tmux セッション '$SESSION_NAME' を作成中..."
+
+  # 既存セッションがあれば削除
+  tmux kill-session -t "$SESSION_NAME" 2>/dev/null || true
+
+  # 新しいセッションを作成（デタッチ状態で）
+  tmux new-session -d -s "$SESSION_NAME" -c "$(pwd)"
+
+  # ペインの分割（並列数に応じて自動調整）
+  case $PARALLEL_COUNT in
+  2)
+    tmux split-window -h -t "$SESSION_NAME"
+    ;;
+  3)
+    tmux split-window -h -t "$SESSION_NAME"
+    tmux split-window -v -t "$SESSION_NAME:0.0"
+    ;;
+  4)
+    tmux split-window -h -t "$SESSION_NAME"
+    tmux split-window -v -t "$SESSION_NAME:0.0"
+    tmux split-window -v -t "$SESSION_NAME:0.1"
+    ;;
+  6)
+    # 2x3 グリッド
+    tmux split-window -h -t "$SESSION_NAME"
+    tmux split-window -v -t "$SESSION_NAME:0.0"
+    tmux split-window -v -t "$SESSION_NAME:0.2"
+    tmux split-window -v -t "$SESSION_NAME:0.1"
+    tmux split-window -v -t "$SESSION_NAME:0.4"
+    ;;
+  9)
+    # 3x3 グリッド
+    tmux split-window -h -t "$SESSION_NAME"
+    tmux split-window -h -t "$SESSION_NAME:0.0"
+    tmux split-window -v -t "$SESSION_NAME:0.0"
+    tmux split-window -v -t "$SESSION_NAME:0.2"
+    tmux split-window -v -t "$SESSION_NAME:0.1"
+    tmux split-window -v -t "$SESSION_NAME:0.4"
+    tmux split-window -v -t "$SESSION_NAME:0.3"
+    tmux split-window -v -t "$SESSION_NAME:0.6"
+    ;;
+  12)
+    # 4x3 グリッド
+    tmux split-window -h -t "$SESSION_NAME"
+    tmux split-window -h -t "$SESSION_NAME:0.0"
+    tmux split-window -h -t "$SESSION_NAME:0.2"
+    tmux split-window -v -t "$SESSION_NAME:0.0"
+    tmux split-window -v -t "$SESSION_NAME:0.2"
+    tmux split-window -v -t "$SESSION_NAME:0.1"
+    tmux split-window -v -t "$SESSION_NAME:0.4"
+    tmux split-window -v -t "$SESSION_NAME:0.3"
+    tmux split-window -v -t "$SESSION_NAME:0.6"
+    tmux split-window -v -t "$SESSION_NAME:0.5"
+    tmux split-window -v -t "$SESSION_NAME:0.8"
+    ;;
+  *)
+    print_warning "並列数 $PARALLEL_COUNT は最適化されていません。基本分割を使用します。"
+    for ((i = 1; i < PARALLEL_COUNT; i++)); do
+      if [ $((i % 2)) -eq 1 ]; then
+        tmux split-window -h -t "$SESSION_NAME"
+      else
+        tmux split-window -v -t "$SESSION_NAME"
+      fi
+    done
+    ;;
+  esac
+
+  # 各ペインに worktree ディレクトリを設定
+  for i in $(seq 0 $((PARALLEL_COUNT - 1))); do
+    TASK_NUM=$((i + 1))
+    WORKTREE_PATH="../${PROJECT_NAME}-task${TASK_NUM}"
+    tmux send-keys -t "$SESSION_NAME:0.$i" "cd $WORKTREE_PATH" Enter
+  done
+
+  # 最初のペインを選択
+  tmux select-pane -t "$SESSION_NAME:0.0"
+
+  print_success "tmux セッションが作成されました"
+}
+
+# 使用方法表示
+show_usage() {
+  cat <<EOF
+Claude Code 並列開発環境が起動しました！
+
+セッション名: $SESSION_NAME
+並列数: $PARALLEL_COUNT
+
+== 基本操作 ==
+• セッションにアタッチ: tmux attach-session -t $SESSION_NAME
+• ペイン移動: Ctrl+g + h/j/k/l
+• ペイン選択: Ctrl+g + q + 番号
+• ペインズーム: Ctrl+g + z
+• セッション終了: Ctrl+g + d
+
+== 各ペインでの作業 ==
+各ペインで Claude Code を起動してください:
+  claude
+
+== 作業完了後のクリーンアップ ==
+  git worktree list  # 確認
+  git worktree remove ../path  # 削除
+
+詳細な使用方法は README.md をご確認ください。
+EOF
+}
+
+# メイン実行
+main() {
+  echo "=== Claude Code 並列開発環境セットアップ ==="
+  echo "プロジェクト: $PROJECT_NAME"
+  echo "並列数: $PARALLEL_COUNT"
+  echo
+
+  check_requirements
+  check_tmux_config
+  setup_worktrees
+  create_tmux_session
+
+  print_success "セットアップ完了！"
+  echo
+  show_usage
+
+  # セッションにアタッチするか確認
+  read -p "今すぐ tmux セッションを開始しますか？ (y/n): " -n 1 -r
+  echo
+  if [[ $REPLY =~ ^[Yy]$ ]]; then
+    tmux attach-session -t "$SESSION_NAME"
+  fi
+}
+
+# スクリプト実行
+main "$@"
