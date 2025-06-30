@@ -47,34 +47,46 @@ git clone https://github.com/taka-123/claude-parallel.git claude-parallel
 
 **オプション**: 個人用にカスタマイズしたい場合はフォークして使用することも可能です。
 
-### 3. tmux 設定
+### 3. tmux 設定（初回のみ）
 
 ```bash
-# 初回のみ：tmux設定をコピー（既存設定がある場合はバックアップ推奨）
-cp ~/.tmux.conf ~/.tmux.conf.backup 2>/dev/null || true
+# claude-parallelディレクトリに移動
+cd claude-parallel
+
+# tmux設定をコピー
 cp .tmux.conf.example ~/.tmux.conf
 
 # 設定を反映
 tmux source-file ~/.tmux.conf
 ```
 
-**注意**: 既存の `~/.tmux.conf` がある場合は、上書きされます。重要な設定がある場合は事前にバックアップしてください。
+**注意**: 既存の `~/.tmux.conf` がある場合は上書きされます。
 
 ### 4. 並列開発環境の起動
 
 ```bash
-# プロジェクトディレクトリで実行
-cd /your/project
-./claude-parallel/setup-claude-parallel
+# プロジェクトディレクトリに戻る
+cd ..
 
-# カスタマイズ例
-./claude-parallel/setup-claude-parallel my-app 6    # プロジェクト名とタスク数を指定
-./claude-parallel/setup-claude-parallel blog 4     # 4並列で起動
+# セットアップスクリプトを実行
+./claude-parallel/setup-claude-parallel    # デフォルト: 6並列
+./claude-parallel/setup-claude-parallel 4  # 4並列で起動
 ```
+
+スクリプト実行後、自動的に tmux セッションが開始されます。
 
 ## 📖 詳細ガイド
 
-### tmux 操作方法
+### コマンドオプション
+
+```bash
+./claude-parallel/setup-claude-parallel [並列数] [プロジェクト名]
+```
+
+- **並列数**（省略可、デフォルト: 6）: 作成する worktree とペインの数
+- **プロジェクト名**（省略可、デフォルト: 現在のディレクトリ名）: tmux セッション名に使用
+
+### tmux 基本操作
 
 | 操作           | キーバインド        | 説明                    |
 | -------------- | ------------------- | ----------------------- |
@@ -86,15 +98,9 @@ cd /your/project
 | 設定再読込     | `Ctrl+g + r`        | tmux 設定をリロード     |
 | セッション終了 | `Ctrl+g + d`        | バックグラウンドに移行  |
 
-### 並列開発の実践
+### 使い方
 
-#### Step 1: 環境起動
-
-```bash
-./claude-parallel/setup-claude-parallel my-project 6
-```
-
-#### Step 2: 各ペインで Claude Code 起動
+#### Step 1: 各ペインで Claude Code 起動
 
 各ペインで以下を実行：
 
@@ -109,7 +115,7 @@ claude --dangerously-skip-permissions
 
 各 Claude Code インスタンスに独立したタスクを指示：
 
-**例：Web アプリケーション開発**
+**例1：Web アプリケーション開発**
 
 - Task1: 「ユーザー認証 API を実装して」
 - Task2: 「商品管理画面の UI コンポーネントを作成して」
@@ -118,68 +124,35 @@ claude --dangerously-skip-permissions
 - Task5: 「API ドキュメントを更新して」
 - Task6: 「パフォーマンス改善を行って」
 
+**例2：GitHub Issues ベース**
+
+```bash
+# まず Issues を確認
+gh issue list
+```
+
+- Task1: 「Issue #15 のユーザー認証改善を実装して」
+- Task2: 「Issue #16 の API レスポンス最適化を行って」
+- Task3: 「Issue #17 の UI コンポーネントを追加して」
+- Task4: 「Issue #18 のバグを修正して」
+
 #### Step 4: 作業完了後の統合
 
 ```bash
-# メインブランチに戻る
-cd ~/projects/my-project
-
 # 各ブランチをマージ
 git checkout main
 git merge feature/task1
 git merge feature/task2
 # ...
-
-# または Pull Request を作成
-gh pr create --base main --head feature/task1 --title "ユーザー認証API実装"
 ```
 
 #### Step 5: クリーンアップ
 
 ```bash
 # 作業完了後、worktreeを削除
-git worktree remove ../my-project-task1
-git worktree remove ../my-project-task2
+git worktree remove ../[プロジェクト名]-task1
+git worktree remove ../[プロジェクト名]-task2
 # ...
-
-# ブランチ削除（必要に応じて）
-git branch -d feature/task1
-git branch -d feature/task2
-```
-
-## 💡 使用パターン
-
-### パターン 1: GitHub Issues ベース
-
-```bash
-# GitHubのIssuesを確認
-gh issue list
-
-# 各worktreeで異なるIssueに取り組む
-# Task1: Issue #15 - ユーザー認証改善
-# Task2: Issue #16 - APIレスポンス最適化
-# Task3: Issue #17 - UIコンポーネント追加
-```
-
-### パターン 2: 機能別分担
-
-```bash
-# 大きな機能を細分化して並列実行
-# Task1: Backend API
-# Task2: Frontend UI
-# Task3: Database Migration
-# Task4: Testing
-# Task5: Documentation
-```
-
-### パターン 3: リファクタリング・最適化
-
-```bash
-# コードベース全体の改善を並列実行
-# Task1: コンポーネントA のリファクタリング
-# Task2: コンポーネントB のリファクタリング
-# Task3: パフォーマンス改善
-# Task4: セキュリティ強化
 ```
 
 ## ⚙️ カスタマイズ
@@ -191,8 +164,8 @@ gh issue list
 - 2, 3, 4, 6, 9, 12
 
 ```bash
-./claude-parallel/setup-claude-parallel my-project 6   # 6並列（推奨）
-./claude-parallel/setup-claude-parallel my-project 12  # 12並列（上級者向け）
+./claude-parallel/setup-claude-parallel 6    # 6並列（推奨）
+./claude-parallel/setup-claude-parallel 12   # 12並列（上級者向け）
 ```
 
 ### tmux 設定のカスタマイズ
@@ -217,7 +190,7 @@ bind - split-window -v  # - キーで縦分割
 ```bash
 # ターミナルウィンドウのサイズを大きくする
 # または、並列数を減らす
-./claude-parallel/setup-claude-parallel my-project 6  # 12→6に減らす
+./claude-parallel/setup-claude-parallel 6  # 12→6に減らす
 ```
 
 **Q: Claude Code の起動が失敗する**
@@ -246,7 +219,7 @@ git branch -D branch-name
 
 ```bash
 # 並列数を減らす
-./claude-parallel/setup-claude-parallel my-project 3
+./claude-parallel/setup-claude-parallel 3
 
 # システムリソースを確認
 top
@@ -261,8 +234,8 @@ tmux list-sessions
 # セッションにアタッチ（セッション名は実際のプロジェクト名に応じて変わります）
 tmux attach-session -t claude-my-project
 
-# バックグラウンドで実行中のセッションに戻る
-tmux attach-session -t claude-parallel
+# セッションにアタッチ
+tmux attach-session -t claude-[プロジェクト名]
 
 # セッション強制終了
 tmux kill-session -t claude-my-project

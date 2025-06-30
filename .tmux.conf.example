@@ -10,12 +10,6 @@ set -g prefix C-g
 # プレフィックスキー自体を送信するためのバインド（アプリケーションで Ctrl+g が必要な場合）
 bind C-g send-prefix
 
-# ウィンドウ番号を1から開始（デフォルトは0から）
-set -g base-index 1
-
-# ペイン番号を1から開始（デフォルトは0から）
-setw -g pane-base-index 1
-
 # ウィンドウを閉じた時に番号を詰める
 set -g renumber-windows on
 

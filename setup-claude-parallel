@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Claude Code 並列開発環境セットアップスクリプト
-# 使用方法: ./setup-claude-parallel [プロジェクト名] [並列数]
+# 使用方法: ./setup-claude-parallel [並列数] [プロジェクト名]
 
 set -e
 
@@ -10,8 +10,8 @@ DEFAULT_PARALLEL_COUNT=6
 DEFAULT_PROJECT_NAME=$(basename "$(pwd)")
 
 # 引数の処理
-PROJECT_NAME=${1:-$DEFAULT_PROJECT_NAME}
-PARALLEL_COUNT=${2:-$DEFAULT_PARALLEL_COUNT}
+PARALLEL_COUNT=${1:-$DEFAULT_PARALLEL_COUNT}
+PROJECT_NAME=${2:-$DEFAULT_PROJECT_NAME}
 SESSION_NAME="claude-${PROJECT_NAME}"
 
 # 色付きメッセージ
@@ -92,7 +92,7 @@ setup_worktrees() {
   git worktree list | grep "${PROJECT_NAME}-task" | awk '{print $1}' | while read -r path; do
     if [ -d "$path" ]; then
       print_info "削除中: $path"
-      git worktree remove "$path" 2>/dev/null || true
+      git worktree remove --force "$path" 2>/dev/null || true
     fi
   done
 
@@ -103,8 +103,9 @@ setup_worktrees() {
 
     print_info "作成中: $WORKTREE_PATH ($BRANCH_NAME)"
 
-    # ブランチが既に存在する場合は削除
+    # ブランチが既に存在する場合は削除（ローカルとリモート両方）
     git branch -D "$BRANCH_NAME" 2>/dev/null || true
+    git push origin --delete "$BRANCH_NAME" 2>/dev/null || true
 
     # worktree を作成
     git worktree add "$WORKTREE_PATH" -b "$BRANCH_NAME"
