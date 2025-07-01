@@ -130,6 +130,9 @@ create_tmux_session() {
 
   # 新しいセッションを作成（デタッチ状態で）
   tmux new-session -d -s "$SESSION_NAME" -c "$(pwd)"
+  
+  # セッション初期化の完了を待機（OSCクエリ問題回避）
+  sleep 0.5
 
   # ペインの分割（並列数に応じて自動調整）
   case $PARALLEL_COUNT in

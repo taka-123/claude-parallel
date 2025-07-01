@@ -81,6 +81,13 @@ set -g default-terminal "screen-256color"
 # True Color（24bit色）サポートを有効にする
 set -ga terminal-overrides ",xterm-256color:Tc"
 
+# 色検出の問題を回避
+set -g allow-passthrough off
+
+# セッション作成時のOSCクエリを抑制
+set -g set-titles off
+set -g automatic-rename off
+
 # ステータスバーの更新間隔（秒）
 set -g status-interval 1
 
