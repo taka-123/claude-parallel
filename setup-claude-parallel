@@ -197,7 +197,10 @@ create_tmux_session() {
   for i in $(seq 0 $((PARALLEL_COUNT - 1))); do
     TASK_NUM=$((i + 1))
     WORKTREE_PATH="../${PROJECT_NAME}-task${TASK_NUM}"
+    # OSCクエリを無効化してからコマンド実行
+    tmux send-keys -t "$SESSION_NAME:0.$i" "export TERM_NO_OSC=1" Enter
     tmux send-keys -t "$SESSION_NAME:0.$i" "cd $WORKTREE_PATH" Enter
+    tmux send-keys -t "$SESSION_NAME:0.$i" "clear" Enter
   done
 
   # 最初のペインを選択
