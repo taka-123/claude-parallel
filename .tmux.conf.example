@@ -69,8 +69,8 @@ set-option -g mouse on
 bind -n WheelUpPane if-shell -F -t = "#{mouse_any_flag}" "send-keys -M" "if -Ft= '#{pane_in_mode}' 'send-keys -M' 'select-pane -t=; copy-mode -e; send-keys -M'"
 bind -n WheelDownPane select-pane -t= \; send-keys -M
 
-# ペインを右クリックで全ペインをタイル状に自動整列
-bind -n MouseDown3Pane select-layout tiled
+# 全ペインをタイル状に整列（=キーで均等レイアウト）
+bind-key = select-layout tiled
 
 # -----------------------------------------------------------------------------
 # 外観・テーマ設定
